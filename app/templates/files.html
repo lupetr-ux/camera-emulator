@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление видеофайлами - Эмулятор камер</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .nav-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .nav-link {
+            text-decoration: none;
+            color: #666;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .nav-link:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .upload-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .upload-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .upload-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .file-input {
+            flex: 1;
+            min-width: 250px;
+            padding: 10px;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #38a169;
+        }
+        
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+            font-size: 1.2em;
+        }
+        
+        .videos-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .videos-table th {
+            text-align: left;
+            padding: 12px;
+            background: #f8f9fa;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .videos-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .videos-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .video-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .video-icon {
+            color: #667eea;
+        }
+        
+        .video-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-icon {
+            padding: 6px 12px;
+            font-size: 0.9em;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 20px;
+        }
+        
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .success-message {
+            background: #c6f6d5;
+            color: #276749;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📹 Эмулятор IP камер</h1>
+        
+        <div class="nav-bar">
+            <a href="/" class="nav-link">🏠 Камеры</a>
+            <a href="/files" class="nav-link active">📁 Видеофайлы</a>
+        </div>
+        
+        <div class="upload-section">
+            <h3>📤 Загрузить новое видео</h3>
+            <div class="upload-form">
+                <input type="file" id="videoFile" accept=".mp4,.avi,.mov,.mkv" class="file-input">
+                <button onclick="uploadVideo()" class="btn btn-primary">Загрузить</button>
+            </div>
+            <div id="uploadProgress" class="progress-bar" style="display: none;">
+                <div id="uploadProgressFill" class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div id="message"></div>
+        
+        <div class="stats-bar" id="stats">
+            <div class="stat-item">
+                <span>📊 Всего видео:</span>
+                <span class="stat-value" id="totalVideos">0</span>
+            </div>
+            <div class="stat-item">
+                <span>💾 Общий размер:</span>
+                <span class="stat-value" id="totalSize">0 MB</span>
+            </div>
+        </div>
+        
+        <table class="videos-table" id="videosTable">
+            <thead>
+                <tr>
+                    <th>Файл</th>
+                    <th>Размер</th>
+                    <th>Изменен</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="videosList">
+                <tr>
+                    <td colspan="4" class="loading">Загрузка списка видео...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Модальное окно для переименования -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <h3>✏️ Переименовать файл</h3>
+            <input type="text" id="newFileName" placeholder="Новое имя файла">
+            <div class="modal-actions">
+                <button onclick="closeRenameModal()" class="btn">Отмена</button>
+                <button onclick="confirmRename()" class="btn btn-success">Переименовать</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentFile = null;
+        let currentRenameFile = null;
+        
+        // Загружаем список видео при открытии страницы
+        document.addEventListener('DOMContentLoaded', loadVideos);
+        
+        async function loadVideos() {
+            try {
+                const response = await fetch('/api/videos');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayVideos(data.videos);
+                    updateStats(data.videos);
+                } else {
+                    showError('Ошибка загрузки видео: ' + data.error);
+                }
+            } catch (error) {
+                showError('Ошибка соединения с сервером');
+                console.error(error);
+            }
+        }
+        
+        function displayVideos(videos) {
+            const tbody = document.getElementById('videosList');
+            
+            if (videos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 40px; color: #999;">📁 Нет видеофайлов</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            videos.forEach(video => {
+                html += `
+                    <tr>
+                        <td>
+                            <div class="video-name">
+                                <span class="video-icon">🎬</span>
+                                <span>${video.name}</span>
+                            </div>
+                        </td>
+                        <td>${video.size}</td>
+                        <td>${video.modified}</td>
+                        <td>
+                            <div class="video-actions">
+                                <button onclick="renameFile('${video.name}')" class="btn btn-icon btn-primary">✏️</button>
+                                <button onclick="deleteFile('${video.name}')" class="btn btn-icon btn-danger">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        function updateStats(videos) {
+            document.getElementById('totalVideos').textContent = videos.length;
+            
+            const totalBytes = videos.reduce((sum, video) => sum + (video.size_bytes || 0), 0);
+            let totalSizeStr;
+            
+            if (totalBytes < 1024 * 1024) {
+                totalSizeStr = (totalBytes / 1024).toFixed(1) + ' KB';
+            } else if (totalBytes < 1024 * 1024 * 1024) {
+                totalSizeStr = (totalBytes / (1024 * 1024)).toFixed(1) + ' MB';
+            } else {
+                totalSizeStr = (totalBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            }
+            
+            document.getElementById('totalSize').textContent = totalSizeStr;
+        }
+        
+        async function uploadVideo() {
+            const fileInput = document.getElementById('videoFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('Выберите файл для загрузки');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const progressBar = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('uploadProgressFill');
+            progressBar.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/videos/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Файл успешно загружен');
+                    fileInput.value = '';
+                    loadVideos(); // Перезагружаем список
+                } else {
+                    showError('Ошибка загрузки: ' + data.error);
+                }
+            } catch (error) {
+                showError('Ошибка соединения с сервером');
+            } finally {
+                progressBar.style.display = 'none';
+                progressFill.style.width = '0%';
+            }
+        }
+        
+        function renameFile(filename) {
+            currentRenameFile = filename;
+            document.getElementById('newFileName').value = filename;
+            document.getElementById('renameModal').classList.add('active');
+        }
+        
+        function closeRenameModal() {
+            document.getElementById('renameModal').classList.remove('active');
+            currentRenameFile = null;
+        }
+        
+        async function confirmRename() {
+            const newName = document.getElementById('newFileName').value;
+            
+            if (!newName) {
+                showError('Введите новое имя файла');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/videos/${encodeURIComponent(currentRenameFile)}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ new_name: newName })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Файл переименован');
+                    closeRenameModal();
+                    loadVideos();
+                } else {
+                    showError('Ошибка переименования: ' + data.error);
+                }
+            } catch (error) {
+                showError('Ошибка соединения с сервером');
+            }
+        }
+        
+        async function deleteFile(filename) {
+            if (!confirm(`Удалить файл "${filename}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/videos/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Файл удален');
+                    loadVideos();
+                } else {
+                    showError('Ошибка удаления: ' + data.error);
+                }
+            } catch (error) {
+                showError('Ошибка соединения с сервером');
+            }
+        }
+        
+        function showError(message) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="error-message">❌ ${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="success-message">✅ ${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+import os
+import json
+import time
+import subprocess
+from datetime import datetime
+from flask import Flask, render_template, jsonify, request, Response
+from video_stream import VideoStreamer
+
+app = Flask(__name__)
+app.config['VIDEO_FOLDER'] = '/app/videos'
+app.config['CONFIG_FOLDER'] = '/app/config'
+
+video_streamer = VideoStreamer()
+video_streamer.start()
+
+cameras = {}
+camera_counter = 0
+config_file = '/app/config/cameras.json'
+processes = {}
+
+if os.path.exists(config_file):
+    with open(config_file, 'r') as f:
+        data = json.load(f)
+        cameras = data.get('cameras', {})
+        camera_counter = data.get('counter', 0)
+
+# АВТОЗАПУСК ВСЕХ КАМЕР ПРИ СТАРТЕ
+print("\n" + "="*50)
+print("АВТОЗАПУСК КАМЕР")
+print("="*50)
+
+for cam_id in cameras.keys():
+    try:
+        print(f"Запуск камеры {cam_id}...")
+        video = cameras[cam_id]['video']
+        if os.path.exists(video):
+            cmd = [
+                'ffmpeg', '-re', '-stream_loop', '-1', '-i', video,
+                '-an', '-c:v', 'libx264', '-preset', 'ultrafast',
+                '-tune', 'zerolatency', '-f', 'rtsp', '-rtsp_transport', 'tcp',
+                f'rtsp://localhost:554/camera{cam_id}'
+            ]
+            process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            processes[cam_id] = process
+            video_streamer.start_stream(cam_id, video, 30)
+            print(f"✅ Камера {cam_id} запущена")
+        else:
+            print(f"❌ Видео не найдено: {video}")
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+
+print("="*50)
+print("АВТОЗАПУСК ЗАВЕРШЕН")
+print("="*50 + "\n")
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/files')
+def files_page():
+    return render_template('files.html')
+
+@app.route('/api/status')
+def status():
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/videos')
+def list_videos():
+    videos = []
+    video_folder = app.config['VIDEO_FOLDER']
+    try:
+        for file in os.listdir(video_folder):
+            if file.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                file_path = os.path.join(video_folder, file)
+                stat = os.stat(file_path)
+                size_bytes = stat.st_size
+                if size_bytes < 1024:
+                    size_str = f"{size_bytes} B"
+                elif size_bytes < 1024 * 1024:
+                    size_str = f"{size_bytes / 1024:.1f} KB"
+                elif size_bytes < 1024 * 1024 * 1024:
+                    size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                else:
+                    size_str = f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+                mod_time = datetime.fromtimestamp(stat.st_mtime)
+                mod_time_str = mod_time.strftime('%Y-%m-%d %H:%M:%S')
+                videos.append({
+                    'name': file,
+                    'size': size_str,
+                    'size_bytes': stat.st_size,
+                    'modified': mod_time_str,
+                    'modified_timestamp': stat.st_mtime,
+                    'path': file
+                })
+        videos.sort(key=lambda x: x['modified_timestamp'], reverse=True)
+        return jsonify({'success': True, 'videos': videos, 'folder': video_folder, 'count': len(videos)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/videos/upload', methods=['POST'])
+def upload_video():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Нет файла'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'Не выбран файл'}), 400
+    allowed_extensions = {'.mp4', '.avi', '.mov', '.mkv'}
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        return jsonify({'success': False, 'error': f'Недопустимый формат. Разрешены: {", ".join(allowed_extensions)}'}), 400
+    filename = file.filename
+    file_path = os.path.join(app.config['VIDEO_FOLDER'], filename)
+    counter = 1
+    while os.path.exists(file_path):
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_{counter}{ext}"
+        file_path = os.path.join(app.config['VIDEO_FOLDER'], new_filename)
+        counter += 1
+    try:
+        file.save(file_path)
+        return jsonify({'success': True, 'filename': os.path.basename(file_path), 'size': os.path.getsize(file_path)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/videos/<path:filename>', methods=['DELETE'])
+def delete_video(filename):
+    if '..' in filename or filename.startswith('/'):
+        return jsonify({'success': False, 'error': 'Недопустимое имя файла'}), 400
+    file_path = os.path.join(app.config['VIDEO_FOLDER'], filename)
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        return jsonify({'success': False, 'error': 'Файл не найден'}), 404
+    for cam_id, cam in cameras.items():
+        if cam.get('video') == file_path:
+            return jsonify({'success': False, 'error': f'Файл используется камерой {cam.get("name", cam_id)}. Остановите камеру перед удалением.'}), 400
+    try:
+        os.remove(file_path)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/videos/<path:filename>', methods=['PUT'])
+def rename_video(filename):
+    if '..' in filename or filename.startswith('/'):
+        return jsonify({'success': False, 'error': 'Недопустимое имя файла'}), 400
+    data = request.json
+    new_name = data.get('new_name')
+    if not new_name:
+        return jsonify({'success': False, 'error': 'Новое имя не указано'}), 400
+    if '..' in new_name or new_name.startswith('/'):
+        return jsonify({'success': False, 'error': 'Недопустимое новое имя'}), 400
+    old_path = os.path.join(app.config['VIDEO_FOLDER'], filename)
+    new_path = os.path.join(app.config['VIDEO_FOLDER'], new_name)
+    if not os.path.exists(old_path) or not os.path.isfile(old_path):
+        return jsonify({'success': False, 'error': 'Файл не найден'}), 404
+    if os.path.exists(new_path):
+        return jsonify({'success': False, 'error': 'Файл с таким именем уже существует'}), 400
+    allowed_extensions = {'.mp4', '.avi', '.mov', '.mkv'}
+    if os.path.splitext(new_name)[1].lower() not in allowed_extensions:
+        return jsonify({'success': False, 'error': f'Недопустимый формат. Разрешены: {", ".join(allowed_extensions)}'}), 400
+    for cam_id, cam in cameras.items():
+        if cam.get('video') == old_path:
+            cam['video'] = new_path
+    try:
+        os.rename(old_path, new_path)
+        with open(config_file, 'w') as f:
+            json.dump({'cameras': cameras, 'counter': camera_counter}, f)
+        return jsonify({'success': True, 'new_name': new_name})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cameras', methods=['GET'])
+def get_cameras():
+    camera_list = []
+    for cam_id, cam in cameras.items():
+        camera_list.append({
+            'id': cam_id,
+            'name': cam['name'],
+            'model': cam.get('model', 'Hikvision'),
+            'status': 'running' if cam_id in processes else 'stopped',
+            'video': os.path.basename(cam['video']),
+            'username': 'admin',
+            'stream_info': video_streamer.get_stream_info(cam_id)
+        })
+    return jsonify({'success': True, 'cameras': camera_list})
+
+@app.route('/api/cameras', methods=['POST'])
+def create_camera():
+    global camera_counter
+    data = request.json
+    camera_counter += 1
+    cam_id = str(camera_counter)
+
+    cameras[cam_id] = {
+        'id': cam_id,
+        'name': data.get('name'),
+        'model': data.get('model', 'DS-2CD2343G0-I'),
+        'video': data.get('video'),
+        'username': 'admin',
+        'password': 'admin123'
+    }
+    
+    with open(config_file, 'w') as f:
+        json.dump({'cameras': cameras, 'counter': camera_counter}, f)
+
+    return jsonify({'success': True, 'camera_id': cam_id})
+
+@app.route('/api/cameras/<cam_id>/start', methods=['POST'])
+def start_camera(cam_id):
+    if cam_id not in cameras:
+        return jsonify({'success': False, 'error': 'Камера не найдена'})
+
+    video = cameras[cam_id]['video']
+    if not os.path.exists(video):
+        return jsonify({'success': False, 'error': 'Видео не найдено'})
+
+    if cam_id in processes:
+        try:
+            processes[cam_id].terminate()
+            time.sleep(1)
+        except:
+            pass
+
+    cmd = [
+        'ffmpeg', '-re', '-stream_loop', '-1', '-i', video,
+        '-an', '-c:v', 'libx264', '-preset', 'ultrafast',
+        '-tune', 'zerolatency', '-f', 'rtsp', '-rtsp_transport', 'tcp',
+        f'rtsp://localhost:554/camera{cam_id}'
+    ]
+
+    process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    processes[cam_id] = process
+
+    video_streamer.start_stream(cam_id, video, 30)
+
+    return jsonify({
+        'success': True,
+        'rtsp_url': f'rtsp://admin:admin123@192.168.30.130:554/camera{cam_id}'
+    })
+
+@app.route('/api/cameras/<cam_id>/stop', methods=['POST'])
+def stop_camera(cam_id):
+    if cam_id in processes:
+        processes[cam_id].terminate()
+        del processes[cam_id]
+    video_streamer.stop_stream(cam_id)
+    return jsonify({'success': True})
+
+@app.route('/api/cameras/<cam_id>', methods=['DELETE'])
+def delete_camera(cam_id):
+    if cam_id in processes:
+        processes[cam_id].terminate()
+        del processes[cam_id]
+    video_streamer.stop_stream(cam_id)
+    if cam_id in cameras:
+        del cameras[cam_id]
+    with open(config_file, 'w') as f:
+        json.dump({'cameras': cameras, 'counter': camera_counter}, f)
+    return jsonify({'success': True})
+
+@app.route('/api/cameras/<cam_id>/snapshot')
+def camera_snapshot(cam_id):
+    try:
+        frame = video_streamer.get_frame(cam_id)
+        if frame is None:
+            from PIL import Image, ImageDraw
+            import io
+            img = Image.new('RGB', (320, 180), color=(0, 100, 200))
+            draw = ImageDraw.Draw(img)
+            draw.text((10, 80), f"Camera {cam_id}", fill=(255, 255, 255))
+            draw.text((10, 100), "No signal", fill=(255, 0, 0))
+            img_io = io.BytesIO()
+            img.save(img_io, 'JPEG')
+            img_io.seek(0)
+            return Response(img_io.getvalue(), mimetype='image/jpeg')
+        import cv2
+        ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ret:
+            return "Error encoding frame", 500
+        return Response(jpeg.tobytes(), mimetype='image/jpeg')
+    except Exception as e:
+        return str(e), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

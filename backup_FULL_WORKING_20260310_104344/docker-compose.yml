@@ -1,0 +1,15 @@
+services:
+  emulator:
+    build: .
+    container_name: camera-emulator
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+      - "554:554"
+      - "1935:1935"
+      - "8880:8888"
+      - "8881:8889"
+    volumes:
+      - ./videos:/app/videos
+      - ./config:/app/config
+      - ./mediamtx.yml:/mediamtx.yml

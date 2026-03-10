@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Эмулятор IP камер для NVR</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2em; margin-bottom: 5px; }
+        .header p { font-size: 1em; opacity: 0.9; }
+        .status-bar {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            display: flex;
+            gap: 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .panel h2 {
+            color: #495057;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+        .video-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .video-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+        }
+        .video-item:hover { background: #f1f3f5; }
+        .video-item.selected { background: #667eea; color: white; }
+        .upload-area {
+            border: 2px dashed #ced4da;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f1f3f5;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.3); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 0.8em; }
+        
+        .cameras-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            padding: 15px;
+        }
+        .camera-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+        .camera-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .camera-name { font-size: 1.1em; font-weight: 600; color: #495057; }
+        .camera-status {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        .status-running { background: #d4edda; color: #155724; }
+        .status-stopped { background: #f8d7da; color: #721c24; }
+        
+        .preview-container {
+            width: 240px;
+            height: 135px;
+            margin: 0 auto 12px auto;
+            background: #000;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+            border: 2px solid #667eea;
+        }
+        .preview-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .live-badge {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(255,0,0,0.9);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .stream-info {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.7);
+            color: #0f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+        }
+        .camera-details { margin-bottom: 10px; font-size: 0.85em; }
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .detail-label { color: #868e96; }
+        .detail-value { font-weight: 600; color: #495057; }
+        
+        .url-box {
+            background: #e8f4f8;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            word-break: break-all;
+            margin-bottom: 10px;
+            border: 1px solid #b8d9e5;
+        }
+        .url-box strong { color: #0066cc; }
+        
+        .camera-actions { display: flex; gap: 8px; }
+        .camera-actions button { flex: 1; }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        .notification.success { background: #28a745; }
+        .notification.error { background: #dc3545; }
+        .notification.info { background: #17a2b8; }
+        .hidden { display: none; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        #videoSearch {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .video-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        .video-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .video-list::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+        .video-list::-webkit-scrollbar-thumb:hover {
+            background: #5a67d8;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📹 Эмулятор IP камер для NVR</h1>
+        </div>
+
+        <div class="status-bar">
+            <div>Статус: <span id="serverStatus">Загрузка...</span></div>
+            <div>Камер: <span id="camerasCount">0</span></div>
+            <div>Видео: <span id="videosCount">0</span></div>
+            <div style="margin-left: auto;">
+                <a href="/files" style="color: #667eea; text-decoration: none; font-weight: 600; padding: 5px 15px; background: white; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                    📁 Управление видео
+                </a>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>📁 Видеофайлы</h2>
+                <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>Всего: <span id="videosCount">0</span> файлов</span>
+                    <a href="/files" style="color: #667eea; text-decoration: none; font-size: 0.9em;">
+                        📤 Управление видео →
+                    </a>
+                </div>
+                <input type="text" id="videoSearch" placeholder="🔍 Поиск видео..." style="margin-bottom: 10px;">
+                <div class="video-list" id="videoList" style="max-height: 300px; overflow-y: auto;">Загрузка...</div>
+            </div>
+
+            <div class="panel">
+                <h2>⚙️ Создать камеру</h2>
+                
+                <div class="form-group">
+                    <label>📹 Название камеры:</label>
+                    <input type="text" id="cameraName" value="Camera" style="font-family: inherit;">
+                </div>
+                
+                <div class="form-group">
+                    <label>🎬 Видеофайл:</label>
+                    <select id="videoSelect" style="font-family: inherit;"></select>
+                </div>
+                
+                <div class="form-group">
+                    <label>🏭 Модель камеры:</label>
+                    <select id="cameraModel" style="font-family: inherit;">
+                        <option value="DS-2CD2343G0-I">Hikvision DS-2CD2343G0-I</option>
+                        <option value="DS-2CD2043G0-I">Hikvision DS-2CD2043G0-I</option>
+                        <option value="DS-2CD2383G0-I">Hikvision DS-2CD2383G0-I</option>
+                        <option value="DS-2CD2143G0-I">Hikvision DS-2CD2143G0-I</option>
+                        <option value="DS-2CD2443G0-IW">Hikvision DS-2CD2443G0-IW</option>
+                        <option value="iDS-2CD7A45G0-IZHS">Hikvision iDS-2CD7A45G0-IZHS</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>🔐 Логин:</label>
+                    <input type="text" id="username" value="admin" style="font-family: inherit;">
+                </div>
+                
+                <div class="form-group">
+                    <label>🔑 Пароль:</label>
+                    <input type="text" id="password" value="admin123" style="font-family: inherit;">
+                </div>
+                
+                <button class="btn btn-primary" onclick="createCamera()">➕ Создать камеру</button>
+            </div>
+        </div>
+
+        <h2 style="padding: 0 20px;">🎥 Активные камеры</h2>
+        <div class="cameras-grid" id="camerasList">
+            <div style="grid-column: 1/-1; text-align: center; padding: 30px;">Нет активных камер</div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification hidden"></div>
+
+    <script>
+        let previewIntervals = {};
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStatus();
+            loadVideos();
+            loadCameras();
+        });
+
+        function showNotification(msg, type) {
+            const n = document.getElementById('notification');
+            n.textContent = msg;
+            n.className = `notification ${type}`;
+            n.classList.remove('hidden');
+            setTimeout(() => n.classList.add('hidden'), 3000);
+        }
+
+        function loadStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(() => document.getElementById('serverStatus').textContent = 'Работает')
+                .catch(() => document.getElementById('serverStatus').textContent = 'Ошибка');
+        }
+
+        function loadVideos() {
+            fetch('/api/videos')
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) return;
+                    const list = document.getElementById('videoList');
+                    const select = document.getElementById('videoSelect');
+
+                    if (d.videos.length === 0) {
+                        list.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">📁 Нет видеофайлов</div>';
+                        select.innerHTML = '<option value="">Нет видео</option>';
+                        document.getElementById('videosCount').textContent = '0';
+                        return;
+                    }
+
+                    let html = '', options = '<option value="">Выберите видео</option>';
+                    d.videos.forEach(v => {
+                        const safeName = v.name.replace(/[^a-zA-Z0-9]/g, '_');
+                        html += `<div class="video-item" onclick="selectVideo('${v.name}')" id="video-${safeName}">
+                            <span>${v.name}</span>
+                            <span style="color: #666; font-size: 0.85em;">${v.size}</span>
+                        </div>`;
+                        options += `<option value="${v.name}">${v.name}</option>`;
+                    });
+
+                    list.innerHTML = html;
+                    select.innerHTML = options;
+                    document.getElementById('videosCount').textContent = d.videos.length;
+                });
+        }
+        function selectVideo(name) {
+            document.querySelectorAll('.video-item').forEach(el => el.classList.remove('selected'));
+            const safeName = name.replace(/[^a-zA-Z0-9]/g, '_');
+            const el = document.getElementById(`video-${safeName}`);
+            if (el) el.classList.add('selected');
+            document.getElementById('videoSelect').value = name;
+        }
+
+        function uploadVideo(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('video', file);
+            
+            showNotification('Загрузка...', 'info');
+            
+            fetch('/api/upload', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        showNotification('✅ Видео загружено', 'success');
+                        loadVideos();
+                    } else {
+                        showNotification('❌ Ошибка загрузки', 'error');
+                    }
+                })
+                .catch(() => showNotification('❌ Ошибка загрузки', 'error'));
+                
+            input.value = '';
+        }
+
+        document.getElementById('videoSearch').addEventListener('input', function(e) {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.video-item').forEach(el => {
+                el.style.display = el.textContent.toLowerCase().includes(term) ? 'flex' : 'none';
+            });
+        });
+
+        function createCamera() {
+            const video = document.getElementById('videoSelect').value;
+            if (!video) return showNotification('❌ Выберите видео', 'error');
+
+            const data = {
+                name: document.getElementById('cameraName').value,
+                video: `/app/videos/${video}`,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            };
+
+            showNotification('Создание...', 'info');
+
+            fetch('/api/cameras', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    showNotification('✅ Камера создана', 'success');
+                    loadCameras();
+                } else {
+                    showNotification('❌ Ошибка: ' + d.error, 'error');
+                }
+            })
+            .catch(() => showNotification('❌ Ошибка создания', 'error'));
+        }
+
+        function loadCameras() {
+            fetch('/api/cameras')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        updateCamerasList(d.cameras);
+                        document.getElementById('camerasCount').textContent = d.cameras.length;
+                    }
+                })
+                .catch(() => showNotification('❌ Ошибка загрузки камер', 'error'));
+        }
+
+        function updateCamerasList(cameras) {
+            const list = document.getElementById('camerasList');
+            
+            if (cameras.length === 0) {
+                list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px;">Нет активных камер</div>';
+                return;
+            }
+
+            let html = '';
+            cameras.forEach(cam => {
+                const isRunning = cam.status === 'running';
+                const rtspPath = `camera${cam.id}`;
+                const rtspUrl = `rtsp://admin:admin123@${window.location.hostname}:554/${rtspPath}`;
+                
+                html += `
+                    <div class="camera-card" id="camera-${cam.id}">
+                        <div class="camera-header">
+                            <span class="camera-name">${cam.name}</span>
+                            <span class="camera-status ${isRunning ? 'status-running' : 'status-stopped'}">${isRunning ? 'Работает' : 'Остановлена'}</span>
+                        </div>
+
+                        ${isRunning ? `
+                            <div class="preview-container">
+                                <img id="preview-${cam.id}" src="/api/cameras/${cam.id}/snapshot?t=${Date.now()}" alt="Live">
+                                <div class="live-badge">LIVE</div>
+                                <div class="stream-info">${cam.stream_info?.width || '?'}x${cam.stream_info?.height || '?'}</div>
+                            </div>
+                        ` : ''}
+
+                        <div class="camera-details">
+                            <div class="detail-item"><span class="detail-label">ID:</span><span class="detail-value">${cam.id}</span></div>
+                            <div class="detail-item"><span class="detail-label">Логин:</span><span class="detail-value">admin</span></div>
+                        </div>
+
+                        ${isRunning ? `
+                            <div class="url-box">
+                                <div><strong>RTSP:</strong> ${rtspUrl}</div>
+                                <div><strong>ONVIF:</strong> ${cam.onvif_port ? `http://${window.location.hostname}:${cam.onvif_port}/onvif/device_service` : 'Недоступно'}</div>
+                            </div>
+                        ` : ''}
+
+                        <div class="camera-actions">
+                            ${isRunning
+                                ? `<button class="btn btn-sm btn-danger" onclick="stopCamera('${cam.id}')">⏹ Стоп</button>`
+                                : `<button class="btn btn-sm btn-success" onclick="startCamera('${cam.id}')">▶ Старт</button>`
+                            }
+                            <button class="btn btn-sm btn-secondary" onclick="deleteCamera('${cam.id}')">🗑 Удалить</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            list.innerHTML = html;
+            
+            cameras.forEach(cam => {
+                if (cam.status === 'running') {
+                    if (previewIntervals[cam.id]) clearInterval(previewIntervals[cam.id]);
+                    previewIntervals[cam.id] = setInterval(() => {
+                        const img = document.getElementById(`preview-${cam.id}`);
+                        if (img) {
+                            img.src = `/api/cameras/${cam.id}/snapshot?t=${Date.now()}`;
+                        }
+                    }, 500);
+                }
+            });
+        }
+
+        function startCamera(id) {
+            fetch(`/api/cameras/${id}/start`, { method: 'POST' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        showNotification('✅ Камера запущена', 'success');
+                        loadCameras();
+                    } else {
+                        showNotification('❌ ' + d.error, 'error');
+                    }
+                })
+                .catch(() => showNotification('❌ Ошибка запуска', 'error'));
+        }
+
+        function stopCamera(id) {
+            fetch(`/api/cameras/${id}/stop`, { method: 'POST' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        if (previewIntervals[id]) {
+                            clearInterval(previewIntervals[id]);
+                            delete previewIntervals[id];
+                        }
+                        showNotification('⏹ Камера остановлена', 'success');
+                        loadCameras();
+                    } else {
+                        showNotification('❌ ' + d.error, 'error');
+                    }
+                })
+                .catch(() => showNotification('❌ Ошибка остановки', 'error'));
+        }
+
+        function deleteCamera(id) {
+            if (!confirm('Вы уверены, что хотите удалить камеру?')) return;
+            
+            fetch(`/api/cameras/${id}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        if (previewIntervals[id]) {
+                            clearInterval(previewIntervals[id]);
+                            delete previewIntervals[id];
+                        }
+                        showNotification('🗑 Камера удалена', 'success');
+                        loadCameras();
+                    } else {
+                        showNotification('❌ ' + d.error, 'error');
+                    }
+                })
+                .catch(() => showNotification('❌ Ошибка удаления', 'error'));
+        }
+    </script>
+</body>
+</html>
