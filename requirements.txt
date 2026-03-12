@@ -1,6 +1,6 @@
 Flask==2.3.3
-opencv-python==4.8.1.78
+opencv-python==4.9.0.80
 numpy==1.24.3
-Pillow==10.0.1
-eventlet==0.33.3
-Flask-SocketIO==5.3.4
+Pillow==10.1.0
+flask-httpauth==4.8.0
+werkzeug==2.3.7

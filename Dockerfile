@@ -1,31 +1,29 @@
 FROM python:3.9-slim
 
+# Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    wget \
-    net-tools \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
-
-RUN wget https://github.com/bluenviron/mediamtx/releases/download/v1.6.0/mediamtx_v1.6.0_linux_amd64.tar.gz && \
-    tar -xzf mediamtx_v1.6.0_linux_amd64.tar.gz && \
-    mv mediamtx /usr/local/bin/ && \
-    rm mediamtx_v1.6.0_linux_amd64.tar.gz
 
 WORKDIR /app
 
+# Копируем requirements и устанавливаем Python пакеты
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ /app/
+# Копируем приложение
+COPY app/ ./app/
 COPY mediamtx.yml /mediamtx.yml
 
-RUN mkdir -p /app/videos /app/config
-
-RUN echo '#!/bin/bash\n\
-/usr/local/bin/mediamtx /mediamtx.yml &\n\
-sleep 3\n\
-python /app/start_all_cameras.py &\n\
-python main.py' > /app/start.sh && chmod +x /app/start.sh
+# Скрипт запуска
+RUN echo '#!/bin/bash\npython /app/main.py &\n/mediamtx' > /app/start.sh && \
+    chmod +x /app/start.sh
 
 EXPOSE 5000 554 1935 8888 8889
 

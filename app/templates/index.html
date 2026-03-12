@@ -55,7 +55,7 @@
             padding-bottom: 8px;
         }
         .video-list {
-            max-height: 250px;
+            max-height: 300px;
             overflow-y: auto;
             border: 1px solid #e9ecef;
             border-radius: 8px;
@@ -70,18 +70,6 @@
         }
         .video-item:hover { background: #f1f3f5; }
         .video-item.selected { background: #667eea; color: white; }
-        .upload-area {
-            border: 2px dashed #ced4da;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            margin-bottom: 15px;
-        }
-        .upload-area:hover {
-            border-color: #667eea;
-            background: #f1f3f5;
-        }
         .form-group { margin-bottom: 15px; }
         .form-group label {
             display: block;
@@ -95,6 +83,11 @@
             border: 2px solid #e9ecef;
             border-radius: 8px;
             font-size: 1em;
+        }
+        .form-group small {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 3px;
         }
         .btn {
             padding: 8px 15px;
@@ -113,11 +106,12 @@
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.3); }
         .btn-danger { background: #dc3545; color: white; }
         .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #333; }
         .btn-sm { padding: 5px 10px; font-size: 0.8em; }
-        
+
         .cameras-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
             gap: 15px;
             padding: 15px;
         }
@@ -145,7 +139,7 @@
         }
         .status-running { background: #d4edda; color: #155724; }
         .status-stopped { background: #f8d7da; color: #721c24; }
-        
+
         .preview-container {
             width: 240px;
             height: 135px;
@@ -197,7 +191,7 @@
         }
         .detail-label { color: #868e96; }
         .detail-value { font-weight: 600; color: #495057; }
-        
+
         .url-box {
             background: #e8f4f8;
             padding: 8px;
@@ -208,10 +202,53 @@
             border: 1px solid #b8d9e5;
         }
         .url-box strong { color: #0066cc; }
-        
-        .camera-actions { display: flex; gap: 8px; }
-        .camera-actions button { flex: 1; }
-        
+
+        .camera-actions { 
+            display: flex; 
+            gap: 8px; 
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .camera-actions button { 
+            flex: 1 1 auto;
+            min-width: 60px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 400px;
+            width: 90%;
+        }
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #495057;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-actions button {
+            flex: 1;
+        }
+
         .notification {
             position: fixed;
             top: 20px;
@@ -227,12 +264,12 @@
         .notification.error { background: #dc3545; }
         .notification.info { background: #17a2b8; }
         .hidden { display: none; }
-        
+
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        
+
         #videoSearch {
             width: 100%;
             padding: 8px;
@@ -240,6 +277,7 @@
             border-radius: 8px;
             margin-bottom: 10px;
         }
+
         .video-list::-webkit-scrollbar {
             width: 8px;
         }
@@ -254,13 +292,13 @@
         .video-list::-webkit-scrollbar-thumb:hover {
             background: #5a67d8;
         }
-
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>📹 Эмулятор IP камер для NVR</h1>
+            <p>Эмуляция реальных камер с RTSP поддержкой</p>
         </div>
 
         <div class="status-bar">
@@ -291,8 +329,14 @@
                 <h2>⚙️ Создать камеру</h2>
                 
                 <div class="form-group">
+                    <label>🆔 ID камеры (необязательно):</label>
+                    <input type="text" id="newCameraId" placeholder="auto" style="font-family: inherit;">
+                    <small>Оставьте пустым для авто-назначения</small>
+                </div>
+                
+                <div class="form-group">
                     <label>📹 Название камеры:</label>
-                    <input type="text" id="cameraName" value="Camera" style="font-family: inherit;">
+                    <input type="text" id="cameraName" value="camera" style="font-family: inherit;">
                 </div>
                 
                 <div class="form-group">
@@ -332,10 +376,26 @@
         </div>
     </div>
 
+    <!-- Модальное окно для смены видео -->
+    <div class="modal" id="changeVideoModal">
+        <div class="modal-content">
+            <h3>🎬 Сменить видеофайл</h3>
+            <div class="form-group">
+                <label>Выберите видео:</label>
+                <select id="changeVideoSelect" style="font-family: inherit;"></select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeChangeVideoModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="confirmChangeVideo()">Сменить</button>
+            </div>
+        </div>
+    </div>
+
     <div id="notification" class="notification hidden"></div>
 
     <script>
         let previewIntervals = {};
+        let currentCameraForVideo = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             loadStatus();
@@ -365,10 +425,12 @@
                     if (!d.success) return;
                     const list = document.getElementById('videoList');
                     const select = document.getElementById('videoSelect');
+                    const changeSelect = document.getElementById('changeVideoSelect');
 
                     if (d.videos.length === 0) {
                         list.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">📁 Нет видеофайлов</div>';
                         select.innerHTML = '<option value="">Нет видео</option>';
+                        if (changeSelect) changeSelect.innerHTML = '<option value="">Нет видео</option>';
                         document.getElementById('videosCount').textContent = '0';
                         return;
                     }
@@ -385,39 +447,17 @@
 
                     list.innerHTML = html;
                     select.innerHTML = options;
+                    if (changeSelect) changeSelect.innerHTML = options;
                     document.getElementById('videosCount').textContent = d.videos.length;
                 });
         }
+
         function selectVideo(name) {
             document.querySelectorAll('.video-item').forEach(el => el.classList.remove('selected'));
             const safeName = name.replace(/[^a-zA-Z0-9]/g, '_');
             const el = document.getElementById(`video-${safeName}`);
             if (el) el.classList.add('selected');
             document.getElementById('videoSelect').value = name;
-        }
-
-        function uploadVideo(input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            const formData = new FormData();
-            formData.append('video', file);
-            
-            showNotification('Загрузка...', 'info');
-            
-            fetch('/api/upload', { method: 'POST', body: formData })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.success) {
-                        showNotification('✅ Видео загружено', 'success');
-                        loadVideos();
-                    } else {
-                        showNotification('❌ Ошибка загрузки', 'error');
-                    }
-                })
-                .catch(() => showNotification('❌ Ошибка загрузки', 'error'));
-                
-            input.value = '';
         }
 
         document.getElementById('videoSearch').addEventListener('input', function(e) {
@@ -431,12 +471,20 @@
             const video = document.getElementById('videoSelect').value;
             if (!video) return showNotification('❌ Выберите видео', 'error');
 
+            const customId = document.getElementById('newCameraId').value.trim();
+            
             const data = {
                 name: document.getElementById('cameraName').value,
+                model: document.getElementById('cameraModel').value,
                 video: `/app/videos/${video}`,
                 username: document.getElementById('username').value,
                 password: document.getElementById('password').value
             };
+            
+            // Добавляем ID, если указан
+            if (customId) {
+                data.id = customId;
+            }
 
             showNotification('Создание...', 'info');
 
@@ -469,9 +517,44 @@
                 .catch(() => showNotification('❌ Ошибка загрузки камер', 'error'));
         }
 
+        function showChangeVideoModal(cameraId) {
+            currentCameraForVideo = cameraId;
+            document.getElementById('changeVideoModal').classList.add('active');
+        }
+
+        function closeChangeVideoModal() {
+            document.getElementById('changeVideoModal').classList.remove('active');
+            currentCameraForVideo = null;
+        }
+
+        function confirmChangeVideo() {
+            const newVideo = document.getElementById('changeVideoSelect').value;
+            if (!newVideo) {
+                showNotification('❌ Выберите видео', 'error');
+                return;
+            }
+            
+            fetch(`/api/cameras/${currentCameraForVideo}/video`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video: `/app/videos/${newVideo}` })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    showNotification('✅ Видео изменено', 'success');
+                    closeChangeVideoModal();
+                    loadCameras();
+                } else {
+                    showNotification('❌ Ошибка: ' + d.error, 'error');
+                }
+            })
+            .catch(() => showNotification('❌ Ошибка изменения', 'error'));
+        }
+
         function updateCamerasList(cameras) {
             const list = document.getElementById('camerasList');
-            
+
             if (cameras.length === 0) {
                 list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px;">Нет активных камер</div>';
                 return;
@@ -482,7 +565,7 @@
                 const isRunning = cam.status === 'running';
                 const rtspPath = `camera${cam.id}`;
                 const rtspUrl = `rtsp://admin:admin123@${window.location.hostname}:554/${rtspPath}`;
-                
+
                 html += `
                     <div class="camera-card" id="camera-${cam.id}">
                         <div class="camera-header">
@@ -500,13 +583,14 @@
 
                         <div class="camera-details">
                             <div class="detail-item"><span class="detail-label">ID:</span><span class="detail-value">${cam.id}</span></div>
+                            <div class="detail-item"><span class="detail-label">Модель:</span><span class="detail-value">${cam.model || 'Hikvision'}</span></div>
+                            <div class="detail-item"><span class="detail-label">Видео:</span><span class="detail-value">${cam.video}</span></div>
                             <div class="detail-item"><span class="detail-label">Логин:</span><span class="detail-value">admin</span></div>
                         </div>
 
                         ${isRunning ? `
                             <div class="url-box">
                                 <div><strong>RTSP:</strong> ${rtspUrl}</div>
-                                <div><strong>ONVIF:</strong> ${cam.onvif_port ? `http://${window.location.hostname}:${cam.onvif_port}/onvif/device_service` : 'Недоступно'}</div>
                             </div>
                         ` : ''}
 
@@ -515,14 +599,15 @@
                                 ? `<button class="btn btn-sm btn-danger" onclick="stopCamera('${cam.id}')">⏹ Стоп</button>`
                                 : `<button class="btn btn-sm btn-success" onclick="startCamera('${cam.id}')">▶ Старт</button>`
                             }
+                            <button class="btn btn-sm btn-warning" onclick="showChangeVideoModal('${cam.id}')">🎬 Сменить видео</button>
                             <button class="btn btn-sm btn-secondary" onclick="deleteCamera('${cam.id}')">🗑 Удалить</button>
                         </div>
                     </div>
                 `;
             });
-            
+
             list.innerHTML = html;
-            
+
             cameras.forEach(cam => {
                 if (cam.status === 'running') {
                     if (previewIntervals[cam.id]) clearInterval(previewIntervals[cam.id]);
@@ -570,7 +655,7 @@
 
         function deleteCamera(id) {
             if (!confirm('Вы уверены, что хотите удалить камеру?')) return;
-            
+
             fetch(`/api/cameras/${id}`, { method: 'DELETE' })
                 .then(r => r.json())
                 .then(d => {
@@ -590,3 +675,79 @@
     </script>
 </body>
 </html>
+
+<!-- Модальное окно смены пароля -->
+<div class="modal" id="changePasswordModal">
+    <div class="modal-content">
+        <h3>🔐 Смена пароля</h3>
+        <div class="form-group">
+            <label>Старый пароль:</label>
+            <input type="password" id="oldPassword" style="font-family: inherit;">
+        </div>
+        <div class="form-group">
+            <label>Новый пароль:</label>
+            <input type="password" id="newPassword" style="font-family: inherit;">
+        </div>
+        <div class="form-group">
+            <label>Подтверждение:</label>
+            <input type="password" id="confirmPassword" style="font-family: inherit;">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeChangePasswordModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="changePassword()">Сменить пароль</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function showChangePasswordModal() {
+    document.getElementById('changePasswordModal').classList.add('active');
+}
+
+function closeChangePasswordModal() {
+    document.getElementById('changePasswordModal').classList.remove('active');
+    document.getElementById('oldPassword').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+}
+
+function changePassword() {
+    const oldPass = document.getElementById('oldPassword').value;
+    const newPass = document.getElementById('newPassword').value;
+    const confirmPass = document.getElementById('confirmPassword').value;
+    
+    if (!oldPass || !newPass || !confirmPass) {
+        showNotification('❌ Заполните все поля', 'error');
+        return;
+    }
+    
+    if (newPass !== confirmPass) {
+        showNotification('❌ Новые пароли не совпадают', 'error');
+        return;
+    }
+    
+    fetch('/api/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: oldPass, new_password: newPass })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showNotification('✅ Пароль изменен', 'success');
+            closeChangePasswordModal();
+        } else {
+            showNotification('❌ ' + d.error, 'error');
+        }
+    })
+    .catch(() => showNotification('❌ Ошибка соединения', 'error'));
+}
+
+// Добавляем кнопку смены пароля в статус-бар
+document.addEventListener('DOMContentLoaded', function() {
+    const statusBar = document.querySelector('.status-bar');
+    const passwordButton = document.createElement('div');
+    passwordButton.innerHTML = '<button onclick="showChangePasswordModal()" style="background: none; border: none; color: #667eea; cursor: pointer; font-weight: 600;">🔑 Сменить пароль</button>';
+    statusBar.appendChild(passwordButton);
+});
+</script>

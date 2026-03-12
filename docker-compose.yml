@@ -9,11 +9,13 @@ services:
       - "1935:1935"
       - "8880:8888"
       - "8881:8889"
-      - "9200-9300:9200-9300"
     volumes:
       - ./videos:/app/videos
       - ./config:/app/config
       - ./mediamtx.yml:/mediamtx.yml
+      - ./.env:/app/.env
+    environment:
+      - WEB_PASSWORD=${WEB_PASSWORD:-admin123}
     logging:
       driver: "json-file"
       options:

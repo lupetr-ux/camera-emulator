@@ -1,3 +1,30 @@
+#!/bin/bash
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${GREEN}🔐 Настройка пароля для веб-интерфейса${NC}"
+
+# Запрашиваем пароль
+echo -e "${YELLOW}Введите пароль для admin (по умолчанию admin123):${NC}"
+read -s WEB_PASSWORD
+if [ -z "$WEB_PASSWORD" ]; then
+    WEB_PASSWORD="admin123"
+fi
+echo -e "${GREEN}Пароль установлен${NC}"
+
+# Сохраняем в .env
+echo "WEB_PASSWORD=$WEB_PASSWORD" > .env
+
+# Устанавливаем библиотеку
+echo -e "${GREEN}📦 Устанавливаем flask-httpauth...${NC}"
+docker exec -it camera-emulator pip install flask-httpauth
+
+# Создаем бэкап
+cp app/main.py app/main.py.backup
+
+# Обновляем main.py
+cat > app/main.py.new << PYEOF
 #!/usr/bin/env python3
 import os
 import json
@@ -16,16 +43,8 @@ app.config['CONFIG_FOLDER'] = '/app/config'
 
 auth = HTTPBasicAuth()
 
-# Загружаем пароль из .env или используем admin123
-WEB_PASSWORD = 'admin123'
-env_file = '/app/.env'
-if os.path.exists(env_file):
-    with open(env_file, 'r') as f:
-        for line in f:
-            if line.startswith('WEB_PASSWORD='):
-                WEB_PASSWORD = line.strip().split('=')[1]
-                break
-
+# Берем пароль из переменной окружения
+WEB_PASSWORD = os.getenv('WEB_PASSWORD', 'admin123')
 users = {
     "admin": generate_password_hash(WEB_PASSWORD)
 }
@@ -91,29 +110,6 @@ def files_page():
 @auth.login_required
 def status():
     return jsonify({'status': 'ok'})
-
-@app.route('/api/change-password', methods=['POST'])
-@auth.login_required
-def change_password():
-    data = request.json
-    old_password = data.get('old_password')
-    new_password = data.get('new_password')
-    
-    current_user = auth.current_user()
-    
-    if not check_password_hash(users.get(current_user), old_password):
-        return jsonify({'success': False, 'error': 'Неверный старый пароль'}), 400
-    
-    users[current_user] = generate_password_hash(new_password)
-    
-    # Сохраняем в .env
-    try:
-        with open('/app/.env', 'w') as f:
-            f.write(f"WEB_PASSWORD={new_password}\n")
-    except:
-        pass
-    
-    return jsonify({'success': True, 'message': 'Пароль успешно изменен'})
 
 @app.route('/api/videos')
 @auth.login_required
@@ -381,3 +377,14 @@ def camera_snapshot(cam_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+PYEOF
+
+# Заменяем main.py
+mv app/main.py.new app/main.py
+
+echo -e "${GREEN}🔄 Перезапускаем контейнер...${NC}"
+docker-compose restart
+
+echo -e "${GREEN}✅ Готово!${NC}"
+echo -e "${GREEN}🔑 Логин: admin${NC}"
+echo -e "${GREEN}🔑 Пароль: ${WEB_PASSWORD}${NC}"
