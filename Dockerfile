@@ -28,3 +28,4 @@ RUN echo '#!/bin/bash\npython /app/main.py &\n/mediamtx' > /app/start.sh && \
 EXPOSE 5000 554 1935 8888 8889
 
 CMD ["/app/start.sh"]
+RUN pip install flask-httpauth --break-system-packages

@@ -1,44 +1,9 @@
-# Бекапы и архивы
-*.tar.gz
-*.tgz
-*.zip
-backup_*/
-backup_*.tar.gz
-CAMERA_EMULATOR_*.tar.gz
-camera-emulator-*.tar.gz
-camera_emulator_*.tar.gz
-
-# Папки с данными
 videos/*
 !videos/.gitkeep
 config/cameras.json
-
-# Python кеш
-__pycache__/
+.env
+__pycache__
 *.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Логи
+*.tar.gz
 *.log
-
-# Временные файлы
-*.bak
-*.backup
-*.old
 .DS_Store
-Thumbs.db
-
-# Docker
-.dockerignore
-docker-compose.override.yml
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~

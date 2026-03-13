@@ -1,1 +1,1 @@
-{"cameras": {"18": {"id": "18", "name": "Camera", "model": "DS-2CD2343G0-I", "video": "/app/videos/camera19(s1.mp4", "username": "admin", "password": "admin123"}}, "counter": 18}
+{"cameras": {"18": {"id": "18", "name": "Camera", "model": "DS-2CD2343G0-I", "video": "/app/videos/camera19(s1.mp4", "username": "admin", "password": "admin123"}, "1": {"id": "1", "name": "camera1", "model": "DS-2CD2343G0-I", "video": "/app/videos/camera19(s1.mp4", "username": "admin", "password": "admin123"}}, "counter": 18}
